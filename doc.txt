@@ -1,0 +1,152 @@
+_Aho-Corasick_
+
+The "ahocorasick" collection implements the classic Aho-Corasick
+multiple keyword matching automaton.  It includes functions for
+constructing an AhoCorasickTree from a list of words, as well as a
+macro for compiling them down into lambdas a-la Shriram
+Krishnamurthi's Automata As Macros paper.
+
+
+The documentation here is a little sparse since the interface might
+change a bit; see the source code and its comments for the details.
+I'll document the functions that will probably be used the most.
+
+
+(Note: the documentation here has a string bias.  I haven't tested my
+assumption yet, but the core functions actually shouldn't care about
+strings, so it should be possible to build automaton with different
+label and output types.)
+
+
+
+_Example of building and searching with an AhoCorasickTree_
+
+The following quick-and-dirty program:
+
+    (require (prefix a: (planet "ahocorasick.ss" ("dyoo" "ahocorasick.plt" 1))))
+    (define tree (a:make-from-strings (list "he" "she" "his" "hers")))
+    (display (a:string-search 
+               tree 
+               "his doctor said she said PLT Scheme was his"))
+    (newline)
+
+will show:
+
+    ((his 0 3) (he 17 19) (she 16 19) (he 17 19) (he 31 33) (his 40 43))
+
+
+
+_AhoCorasickTree API_
+
+Use:
+
+    (require (planet "ahocorasick.ss" ("dyoo" "ahocorasick.plt" 1)))
+
+to load this library.
+
+
+> make: -> AhoCorasickTree
+Constructs a new AhoCorasickTree with an initial zerostate state.
+Example: (define tree (make-tree))
+
+
+> add: AhoCorasickTree labels [output] -> void
+Adds a sequence of labels to the tree.  If the optional output is
+given, associates a match of the labels with that output.
+Otherwise, associates the keyword itself as the output.
+
+Example:
+     (let ((tree (make-tree)))
+       (add tree (string->list "plt"))
+       (add tree (string->list "scheme") 'oh-yeah))
+
+> prepare: AhoCorasickTree -> void
+Finish up the construction of the tree.  This needs to be called
+before the tree is used for searching.
+
+
+> make-from-strings: (listof string) -> AhoCorasickTree
+Builds a prepared tree from a given set of strings.
+
+Since a main application for building these automata are to process
+strings, this function provides a one-step way of building a usable
+automata.
+
+
+
+> port-search: AhoCorasickTree port -> (listof (list output
+                                                   start-index
+                                                   end-index))
+Returns a list of matches, using the port as the input source.
+
+
+> string-search: AhoCorasickTree port -> (listof (list output
+                                                     start-index
+                                                     end-index))
+Returns a list of matches, using the string as the input source.
+
+
+
+
+_Compiling using macros_
+
+Use:
+
+    (require (planet "ahocorasick-macro.ss" ("dyoo" "ahocorasick.plt" 1)))
+
+to load this library.
+
+
+This is mostly modeled from Shriram Krishnamurthi's Automata as Macros
+paper.  Here's a quick-and-dirty example of using it:
+
+    (require (prefix a: "ahocorasick-macro.ss"))
+    (require (lib "pretty.ss"))
+    (pretty-display (a:automaton-sexp-from-strings "he" "she" "his" "hers"))
+    (newline)
+    (newline)
+    (define my-automaton (a:automaton-from-strings "he" "she" "his" "hers"))
+    (display (a:string-search 
+               my-automaton
+               "his doctor said she said PLT Scheme was his"))
+    (newline)
+    
+
+which should display:
+
+    (automaton
+      root
+      (root : (s -> state-1) (h -> state-2) (else -> root))
+      (state-1 : (h -> state-3) (fail -> root))
+      (state-2 : (e -> state-4) (i -> state-5) (fail -> root))
+      (state-3 : (e -> state-6) (fail -> state-2))
+      (state-4 : (outputs (he)) (r -> state-7) (fail -> root))
+      (state-5 : (s -> state-8) (fail -> root))
+      (state-6 : (outputs (he she)) (fail -> state-4))
+      (state-7 : (s -> state-9) (fail -> root))
+      (state-8 : (outputs (his)) (fail -> state-1))
+      (state-9 : (outputs (hers)) (fail -> state-1)))
+    
+    ((his 0 3) (he 17 19) (she 16 19) (he 31 33) (his 40 43))
+
+
+
+The automaton s-expressions are compiled with the _automaton_ syntax;
+it's similar to the one described in Shriram's paper, except:
+
+    In the list of transitions, the first "transition" can be an
+    'outputs' directive that lists the outputs associated with the
+    particular state in the Aho-Corasick automaton.
+
+    There are two special transition label types:
+
+    * else can consume any token, and follows to the next state.
+      Meant to be used for the root state, which in the Aho-Corasick
+      automaton, has edges to everything else.
+
+    * fail does not consume tokens, but still follows the edge.  This
+      corresponds to the failure links of the Aho-Corasick automaton.
+
+
+My macros are also quite a bit messier just because I'm still learning
+the macro system.
