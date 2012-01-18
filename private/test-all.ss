@@ -1,4 +1,5 @@
-(load-relative "test-ahocorasick.ss")
-(load-relative "test-edges.ss")
-(load-relative "test-state.ss")
-(load-relative "test-automaton.ss")
+#lang racket/base
+(require "test-ahocorasick.ss")
+(require "test-edges.ss")
+(require "test-state.ss")
+(require "test-automaton.ss")
